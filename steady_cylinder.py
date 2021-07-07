@@ -1,5 +1,52 @@
+import matplotlib.pyplot as plt
+import numpy as np
 from dolfin import *
 from mshr import *
+
+
+def main():
+    # Define parameters
+    p_in = 100
+    p_out = 0
+    nu = 1.0
+    rho = 1.0
+    radius = 1
+    length = 5
+
+    # Solution and simulation arrays
+    errors = []
+    h_values = []
+    solutions = []
+    DOFs = []
+    N_values = [20, 30, 50]  # Resolution for mesh generation
+
+    # Compute max velocity, Reynolds number and check ratio between length and radius of pipe
+    U_max = (p_in - p_out) * radius ** 2 / (length * nu * rho * 4)
+    Re = U_max * radius / nu
+    ratio = length / radius
+    if ratio <= 1 / 48 * Re:
+        print(ratio, 1 / 48 * Re, Re)
+        print("Ratio = length / radius must be larger than 1/48*Re for the Hagen–Poiseuille law to be valid.")
+        exit()
+
+    print("Reynolds number: {:.3f}".format(Re))
+
+    # Solve for multiple grid resolutions
+    for N in N_values:
+        u, p, boundaries, error, h, u_e, DOF = solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho)
+        errors.append(error)
+        h_values.append(h)
+        DOFs.append(DOF)
+        solutions.append(u.copy(deepcopy=True))
+
+    # Plot L2 - error and velocity profiles
+    plot_l2_error(h_values, errors)
+    plot_velocity(solutions, u_e, N_values, DOFs, Re)
+
+    # Save latest solution
+    File("velocity.pvd") << u
+    File("pressure.pvd") << p
+    File("boundaries.pvd") << boundaries
 
 
 def create_mesh(radius, length, N):
@@ -18,9 +65,9 @@ def print_mesh_info(mesh):
     zmin = mesh.coordinates()[:, 2].min()
     zmax = mesh.coordinates()[:, 2].max()
     print("Mesh dimensions:")
-    print("xmin, xmax: {}, {}".format(xmin, xmax))
-    print("ymin, ymax: {}, {}".format(ymin, ymax))
-    print("zmin, zmax: {}, {}".format(zmin, zmax))
+    print("xmin, xmax: {:.2f}, {:.2f}".format(xmin, xmax))
+    print("ymin, ymax: {:.2f}, {:.2f}".format(ymin, ymax))
+    print("zmin, zmax: {:.2f}, {:.2f}".format(zmin, zmax))
     print("Number of cells: {}".format(mesh.num_cells()))
 
 
@@ -54,6 +101,7 @@ def set_boundaries(mesh, length, radius):
 def solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho):
     # Create mesh
     mesh = create_mesh(radius, length, N)
+    h = mesh.hmin()
 
     # Set boundaries
     boundaries = set_boundaries(mesh, length, radius)
@@ -63,6 +111,7 @@ def solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho):
     P = FiniteElement("CG", mesh.ufl_cell(), 1)
     ME = MixedElement([U, P])
     W = FunctionSpace(mesh, ME)
+    DOF = W.sub(0).dim()
 
     # Define test and trial functions
     up = Function(W)
@@ -77,6 +126,7 @@ def solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho):
 
     # Variational form of steady NS-equations
     f = Constant((0, 0, 0))
+    mu = nu * rho
     nu = Constant(nu)
     rho = Constant(rho)
     n = FacetNormal(mesh)
@@ -102,21 +152,54 @@ def solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho):
 
     u, p = up.split(deepcopy=True)
 
-    return u, p, boundaries
+    # Compute L2 error for x component
+    error_l2, u_e = compute_l2_error(length, mesh, mu, p_in, p_out, radius, u)
+
+    return u, p, boundaries, error_l2, h, u_e, DOF
+
+
+def compute_l2_error(length, mesh, mu, p_in, p_out, radius, u):
+    # Compare numerical solution with exact solution (x component)
+    delta_p = p_in - p_out
+    u_e = Expression("delta_p / (L * mu * 4) * (R * R - x[1] * x[1] - x[2] * x[2] )",
+                     delta_p=delta_p, mu=mu, L=length, R=radius, degree=2)
+    V = FunctionSpace(mesh, 'CG', 2)
+
+    u_exact = interpolate(u_e, V)
+    u_computed = interpolate(u.sub(0), V)
+    error_L2 = errornorm(u_exact, u_computed, 'L2', degree_rise=1)
+
+    return error_L2, u_e
+
+
+def plot_l2_error(h_values, errors):
+    plt.plot(h_values, errors, 'ro-', linewidth=2)
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.grid(True)
+    plt.title("Poiseuille flow ($L_2$ error)")
+    plt.xlabel("Characteristic edge size - $\Delta x$")
+    plt.ylabel("Error - $L_2$")
+    plt.show()
+
+
+def plot_velocity(solutions, u_e, N_values, DOFs, Re):
+    # Plot velocity x component of numerical solution
+    z_values = np.linspace(0, 0.99, 25)
+    for i, u in enumerate(solutions):
+        u_values = [u.sub(0)(0, z, 0) * 1000 for z in z_values]
+        plt.plot(z_values, u_values, label="DOFs: {}, N = {}".format(DOFs[i], N_values[i]), marker="o")
+
+    # Plot velocity x component of analytical solution
+    u_exact_values = [u_e(0, z, 0) * 1000 for z in z_values]
+    plt.plot(z_values, u_exact_values, "--", color="black", label="Analytical solution")
+    plt.title("Velocity profile, Re={}".format(Re))
+    plt.xlabel("Radius $r$ [m]")
+    plt.ylabel("Velocity $v_x$ [mm/s]")
+    plt.grid(True)
+    plt.legend()
+    plt.show()
 
 
 if __name__ == '__main__':
-    # Define parameters
-    p_in = 8.0
-    p_out = 0.0
-    nu = 1.0
-    rho = 1.0
-    radius = 1.0
-    N = 15
-    length = 1
-    u, p, boundaries = solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho)
-
-    # Save solutions
-    File("velocity.pvd") << u
-    File("pressure.pvd") << p
-    File("boundaries.pvd") << boundaries
+    main()
