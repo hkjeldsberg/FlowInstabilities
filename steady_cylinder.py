@@ -18,7 +18,7 @@ def main():
     h_values = []
     solutions = []
     DOFs = []
-    N_values = [20, 30, 50]  # Resolution for mesh generation
+    N_values = [20, 27, 35]  # Resolution for mesh generation
 
     # Compute max velocity, Reynolds number and check ratio between length and radius of pipe
     U_max = (p_in - p_out) * radius ** 2 / (length * nu * rho * 4)
@@ -37,7 +37,7 @@ def main():
         errors.append(error)
         h_values.append(h)
         DOFs.append(DOF)
-        solutions.append(u.copy(deepcopy=True))
+        solutions.append(u)
 
     # Plot L2 - error and velocity profiles
     plot_l2_error(h_values, errors)
@@ -134,7 +134,7 @@ def solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho):
     dx = Measure("dx", domain=mesh)
     ds = Measure("ds", domain=mesh, subdomain_data=boundaries)
 
-    a = nu * inner(grad(u), grad(v)) * dx
+    a = nu * inner(nabla_grad(u), nabla_grad(v)) * dx
     a += -nu * dot(dot(grad(u), n), v) * ds(2) - nu * dot(dot(grad(u), n), v) * ds(3)
     a += dot(dot(u, nabla_grad(u)), v) * dx
     a += -1 / rho * div(v) * p * dx + div(u) * q * dx
