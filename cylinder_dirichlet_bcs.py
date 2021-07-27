@@ -44,8 +44,8 @@ def main():
     plot_velocity(solutions, u_e, N_values, DOFs, Re)
 
     # Save latest solution
-    File("velocity.pvd") << u
-    File("pressure.pvd") << p
+    File("velocity_mixed.pvd") << u
+    File("pressure_mixed.pvd") << p
     File("boundaries.pvd") << boundaries
 
 
@@ -118,15 +118,20 @@ def solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho):
     (u, p) = split(up)
     (v, q) = TestFunctions(W)
 
+    # Setup Poiseuille solution
+    mu = nu * rho
+    delta_p = p_in - p_out
+    u_exact = Expression(("delta_p / (L * mu * 4) * (R * R - x[1] * x[1] - x[2] * x[2] )", 0, 0),
+                         delta_p=delta_p, mu=mu, L=length, R=radius, degree=2)
+
     # Set boundary conditions
     bcu_wall = DirichletBC(W.sub(0), Constant((0, 0, 0)), boundaries, 1)
-    bcp_in = DirichletBC(W.sub(1), Constant(p_in), boundaries, 2)
-    bcp_out = DirichletBC(W.sub(1), Constant(p_out), boundaries, 3)
-    bcs = [bcu_wall, bcp_in, bcp_out]
+    bcu_in = DirichletBC(W.sub(0), u_exact, boundaries, 2)
+    bcu_out = DirichletBC(W.sub(0), u_exact, boundaries, 3)
+    bcs = [bcu_wall, bcu_in, bcu_out]
 
     # Variational form of steady NS-equations
     f = Constant((0, 0, 0))
-    mu = nu * rho
     nu = Constant(nu)
     rho = Constant(rho)
     n = FacetNormal(mesh)
