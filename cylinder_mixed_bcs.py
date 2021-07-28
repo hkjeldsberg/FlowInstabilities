@@ -11,7 +11,7 @@ def main():
     nu = 1.0
     rho = 1.0
     radius = 1
-    length = 5
+    length = 10
 
     # Solution and simulation arrays
     errors = []

@@ -8,10 +8,10 @@ def main():
     # Define parameters
     p_in = 100
     p_out = 0
-    nu = 1.0
+    nu = 0.1
     rho = 1.0
     radius = 1
-    length = 5
+    length = 10
 
     N = 20  # Resolution for mesh generation
 
@@ -52,7 +52,7 @@ def main():
     print('Done solving, process took %4.0f s'%float(toc-tic))
 
     # Write the results to terminal and a .text file
-    eigvalue_results = 'Eigenmodes' 
+    eigvalue_results = 'Eigenmodes/Eigenvalues' 
 
     nev, ncv, mpd = E.getDimensions() # number of requested eigenvalues and Krylov vectors
     nconv = E.getConverged()
