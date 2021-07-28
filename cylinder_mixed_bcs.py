@@ -11,14 +11,14 @@ def main():
     nu = 1.0
     rho = 1.0
     radius = 1
-    length = 5
+    length = 9
 
     # Solution and simulation arrays
     errors = []
     h_values = []
     solutions = []
     DOFs = []
-    N_values = [20, 27, 35]  # Resolution for mesh generation
+    N_values = [45]  # Resolution for mesh generation
 
     # Compute max velocity, Reynolds number and check ratio between length and radius of pipe
     U_max = (p_in - p_out) * radius ** 2 / (length * nu * rho * 4)
@@ -33,7 +33,7 @@ def main():
 
     # Solve for multiple grid resolutions
     for N in N_values:
-        u, p, boundaries, error, h, u_e, DOF = solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho)
+        u, p, boundaries, error, h, u_e, DOF = solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho,True)
         errors.append(error)
         h_values.append(h)
         DOFs.append(DOF)
@@ -98,7 +98,7 @@ def set_boundaries(mesh, length, radius):
     return boundaries
 
 
-def solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho):
+def solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho,saveh5):
     # Create mesh
     mesh = create_mesh(radius, length, N)
     h = mesh.hmin()
@@ -154,6 +154,14 @@ def solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho):
 
     # Compute L2 error for x component
     error_l2, u_e = compute_l2_error(length, mesh, mu, p_in, p_out, radius, u)
+    if saveh5:
+        hdf = HDF5File(mesh.mpi_comm(), 'mesh'+ str(N)+'.h5', "w")
+        hdf.write(mesh, "mesh")
+        hdf.close()
+        file = HDF5File(mesh.mpi_comm(), 'u' + str(N)+ '.h5', "w")
+        file.write(u, "/u")
+        file.close()
+
 
     return u, p, boundaries, error_l2, h, u_e, DOF
 
@@ -168,7 +176,6 @@ def compute_l2_error(length, mesh, mu, p_in, p_out, radius, u):
     u_exact = interpolate(u_e, V)
     u_computed = interpolate(u.sub(0), V)
     error_L2 = errornorm(u_exact, u_computed, 'L2', degree_rise=1)
-
     return error_L2, u_e
 
 
