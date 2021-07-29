@@ -11,14 +11,14 @@ def main():
     nu = 1.0
     rho = 1.0
     radius = 1
-    length = 9
+    length = 5
 
     # Solution and simulation arrays
     errors = []
     h_values = []
     solutions = []
     DOFs = []
-    N_values = [45]  # Resolution for mesh generation
+    N_values = [40]  # Resolution for mesh generation
 
     # Compute max velocity, Reynolds number and check ratio between length and radius of pipe
     U_max = (p_in - p_out) * radius ** 2 / (length * nu * rho * 4)
@@ -44,8 +44,8 @@ def main():
     plot_velocity(solutions, u_e, N_values, DOFs, Re)
 
     # Save latest solution
-    File("velocity_dirichlet.pvd") << u
-    File("pressure_dirichlet.pvd") << p
+    File("velocity.pvd") << u
+    File("pressure.pvd") << p
     File("boundaries.pvd") << boundaries
 
 
@@ -74,7 +74,7 @@ def print_mesh_info(mesh):
 def set_boundaries(mesh, length, radius):
     class Wall(SubDomain):
         def inside(self, x, on_boundary):
-            return on_boundary and x[1] ** 2 + x[2] ** 2 > 0.95 * radius ** 2
+            return on_boundary and near(x[1] ** 2 + x[2] ** 2, radius**2,0.5*mesh.hmin())
 
     class Inlet(SubDomain):
         def inside(self, x, on_boundary):
@@ -124,6 +124,7 @@ def solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho,saveh5):
     bcp_out = DirichletBC(W.sub(1), Constant(p_out), boundaries, 3)
     bcs = [bcu_wall, bcp_in, bcp_out]
 
+
     # Variational form of steady NS-equations
     f = Constant((0, 0, 0))
     mu = nu * rho
@@ -135,7 +136,7 @@ def solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho,saveh5):
     ds = Measure("ds", domain=mesh, subdomain_data=boundaries)
 
     a = nu * inner(nabla_grad(u), nabla_grad(v)) * dx
-    a += -nu * dot(dot(grad(u), n), v) * ds(2) - nu * dot(dot(grad(u), n), v) * ds(3)
+    #a += -nu * dot(dot(grad(u), n), v) * ds(2) - nu * dot(dot(grad(u), n), v) * ds(3)
     a += dot(dot(u, nabla_grad(u)), v) * dx
     a += -1 / rho * div(v) * p * dx + div(u) * q * dx
     L = inner(f, v) * dx

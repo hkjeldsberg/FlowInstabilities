@@ -11,14 +11,14 @@ def main():
     nu = 1.0
     rho = 1.0
     radius = 1
-    length = 5
+    length = 9
 
     # Solution and simulation arrays
     errors = []
     h_values = []
     solutions = []
     DOFs = []
-    N_values = [50]  # Resolution for mesh generation
+    N_values =[28]#,33,34]# Resolution for mesh generation
 
     # Compute max velocity, Reynolds number and check ratio between length and radius of pipe
     U_max = (p_in - p_out) * radius ** 2 / (length * nu * rho * 4)
@@ -44,9 +44,13 @@ def main():
     plot_velocity(solutions, u_e, N_values, DOFs, Re)
 
     # Save latest solution
-    File("velocity_mixed.pvd") << u
-    File("pressure_mixed.pvd") << p
+    File("velocity_dirichlet.pvd") << u
+    File("pressure_dirichlet.pvd") << p
     File("boundaries.pvd") << boundaries
+
+    #for ix,Ns in enumerate(N_values):
+    #    File('sol1.pvd') << ( solutions[ix], float(ix))
+
 
 
 def create_mesh(radius, length, N):
@@ -100,12 +104,16 @@ def set_boundaries(mesh, length, radius):
 
 def solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho):
     # Create mesh
-    mesh = create_mesh(radius, length, N)
+    #mesh = create_mesh(radius, length, N)
+    mesh=Mesh()
+    mesh_file = HDF5File(mesh.mpi_comm(), 'mesh' + str(N)+ '.h5', "r")
+    mesh_file.read(mesh, '/mesh',False)
+    mesh_file.close()
     h = mesh.hmin()
 
     # Set boundaries
     boundaries = set_boundaries(mesh, length, radius)
-
+    File("boundariescheck.pvd") << boundaries
     # Create mixed element space, P2 for velocity, P1 for pressure
     U = VectorElement("CG", mesh.ufl_cell(), 2)
     P = FiniteElement("CG", mesh.ufl_cell(), 1)
@@ -121,14 +129,28 @@ def solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho):
     # Setup Poiseuille solution
     mu = nu * rho
     delta_p = p_in - p_out
-    u_e = Expression(("delta_p / (L * mu * 4) * (R * R - x[1] * x[1] - x[2] * x[2] )", 0, 0),
-                     delta_p=delta_p, mu=mu, L=length, R=radius, degree=2)
+    #u_e = Expression(("delta_p / (L * mu * 4) * (R * R - x[1] * x[1] - x[2] * x[2] )", 0, 0),
+    #                 delta_p=delta_p, mu=mu, L=length, R=radius, degree=2)
 
-    # Set boundary conditions
+    P2 = VectorFunctionSpace(mesh, 'CG', 2)
+    u0f = HDF5File(mesh.mpi_comm(), 'u' + str(N)+ '.h5', "r")
+    u0 = Function(P2)
+    u0f.read(u0, "/u")
+    u0f.close()
+    File("u0.pvd") << u0
+
+
+    File("u0.pvd") << u0
     bcu_wall = DirichletBC(W.sub(0), Constant((0, 0, 0)), boundaries, 1)
-    bcu_in = DirichletBC(W.sub(0), u_e, boundaries, 2)
-    bcu_out = DirichletBC(W.sub(0), u_e, boundaries, 3)
-    bcs = [bcu_wall, bcu_in, bcu_out]
+    bcp_in = DirichletBC(W.sub(0), u0, boundaries, 2)
+    bcp_out = DirichletBC(W.sub(0), u0, boundaries, 3)
+    bcs = [bcu_wall, bcp_in, bcp_out]
+
+
+    #bcu_wall = DirichletBC(W.sub(0), Constant((0, 0, 0)), boundaries, 1)
+    #bcu_in = DirichletBC(W.sub(0), u_e, boundaries, 2)
+    #bcu_out = DirichletBC(W.sub(0), u_e, boundaries, 3)
+    #bcs = [bcu_wall, bcu_in, bcu_out]
 
     # Variational form of steady NS-equations
     f = Constant((0, 0, 0))
@@ -143,6 +165,7 @@ def solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho):
     #a += -nu * dot(dot(grad(u), n), v) * ds(2) - nu * dot(dot(grad(u), n), v) * ds(3)
     a += dot(dot(u, nabla_grad(u)), v) * dx
     a += -1 / rho * div(v) * p * dx + div(u) * q * dx
+    #a += 1 / rho * dot(grad(p),v) * dx + div(u) * q * dx
     L = inner(f, v) * dx
 
     # Solve equations
@@ -172,7 +195,7 @@ def compute_l2_error(length, mesh, mu, p_in, p_out, radius, u):
     u_exact = interpolate(u_e, V)
     u_computed = interpolate(u.sub(0), V)
     error_L2 = errornorm(u_exact, u_computed, 'L2', degree_rise=1)
-
+    print(error_L2)
     return error_L2, u_e
 
 
@@ -185,6 +208,7 @@ def plot_l2_error(h_values, errors):
     plt.xlabel("Characteristic edge size - $\Delta x$")
     plt.ylabel("Error - $L_2$")
     plt.show()
+    plt.savefig("errordirichlet.png")
 
 
 def plot_velocity(solutions, u_e, N_values, DOFs, Re):
@@ -203,6 +227,7 @@ def plot_velocity(solutions, u_e, N_values, DOFs, Re):
     plt.grid(True)
     plt.legend()
     plt.show()
+    plt.savefig('velocitydirichlet.png')
 
 
 if __name__ == '__main__':
