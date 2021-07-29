@@ -11,14 +11,14 @@ def main():
     nu = 1.0
     rho = 1.0
     radius = 1
-    length = 9
+    length = 5
 
     # Solution and simulation arrays
     errors = []
     h_values = []
     solutions = []
     DOFs = []
-    N_values =[28]#,33,34]# Resolution for mesh generation
+    N_values =[25]#,33,34]# Resolution for mesh generation
 
     # Compute max velocity, Reynolds number and check ratio between length and radius of pipe
     U_max = (p_in - p_out) * radius ** 2 / (length * nu * rho * 4)
@@ -129,8 +129,6 @@ def solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho):
     # Setup Poiseuille solution
     mu = nu * rho
     delta_p = p_in - p_out
-    #u_e = Expression(("delta_p / (L * mu * 4) * (R * R - x[1] * x[1] - x[2] * x[2] )", 0, 0),
-    #                 delta_p=delta_p, mu=mu, L=length, R=radius, degree=2)
 
     P2 = VectorFunctionSpace(mesh, 'CG', 2)
     u0f = HDF5File(mesh.mpi_comm(), 'u' + str(N)+ '.h5', "r")
@@ -147,10 +145,6 @@ def solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho):
     bcs = [bcu_wall, bcp_in, bcp_out]
 
 
-    #bcu_wall = DirichletBC(W.sub(0), Constant((0, 0, 0)), boundaries, 1)
-    #bcu_in = DirichletBC(W.sub(0), u_e, boundaries, 2)
-    #bcu_out = DirichletBC(W.sub(0), u_e, boundaries, 3)
-    #bcs = [bcu_wall, bcu_in, bcu_out]
 
     # Variational form of steady NS-equations
     f = Constant((0, 0, 0))
@@ -165,7 +159,6 @@ def solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho):
     #a += -nu * dot(dot(grad(u), n), v) * ds(2) - nu * dot(dot(grad(u), n), v) * ds(3)
     a += dot(dot(u, nabla_grad(u)), v) * dx
     a += -1 / rho * div(v) * p * dx + div(u) * q * dx
-    #a += 1 / rho * dot(grad(p),v) * dx + div(u) * q * dx
     L = inner(f, v) * dx
 
     # Solve equations
