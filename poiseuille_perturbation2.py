@@ -8,10 +8,10 @@ def main():
     # Define parameters
     p_in = 100
     p_out = 0
-    nu = 0.1
+    nu = 1.0
     rho = 1.0
     radius = 1
-    length = 10
+    length = 5
 
     N = 20  # Resolution for mesh generation
 
@@ -32,7 +32,7 @@ def main():
     mu = nu * rho
     delta_p = p_in - p_out
     u0 = Expression(("delta_p / (L * mu * 4) * (R * R - x[1] * x[1] - x[2] * x[2] )", 0, 0),
-                     delta_p=delta_p, mu=mu, L=length, R=radius, degree=2)
+                    delta_p=delta_p, mu=mu, L=length, R=radius, degree=2)
 
     File('Eigenmodes/poseuille_baseflow.pvd') << interpolate(u0, VectorFunctionSpace(mesh, 'CG', 1, 3))
 
@@ -42,31 +42,30 @@ def main():
 
     E = setup_slepc_solver(A, B, target_eigvalue=-1.0e-5, max_it=5, n_eigvals=12)
 
-    
     # Solve for eigenvalues
     print('Solving eigenvalue problem')
     import time
     tic = time.perf_counter()
     E.solve()
     toc = time.perf_counter()
-    print('Done solving, process took %4.0f s'%float(toc-tic))
+    print('Done solving, process took %4.0f s' % float(toc - tic))
 
     # Write the results to terminal and a .text file
-    eigvalue_results = 'Eigenmodes/Eigenvalues' 
+    eigvalue_results = 'Eigenmodes/Eigenmodes'
 
-    nev, ncv, mpd = E.getDimensions() # number of requested eigenvalues and Krylov vectors
+    nev, ncv, mpd = E.getDimensions()  # number of requested eigenvalues and Krylov vectors
     nconv = E.getConverged()
 
     print('****** nu:', nu, '******')
 
     lines = []
-    lines.append('Parameters: nu %1.4f' %(nu))
+    lines.append('Parameters: nu %1.4f' % (nu))
     lines.append("Number of iterations of the method: %d" % E.getIterationNumber())
     lines.append("Number of requested eigenvalues: %d" % nev)
     lines.append("Stopping condition: tol=%.4g, maxit=%d" % E.getTolerances())
     lines.append("Number of converged eigenpairs: %d" % nconv)
     lines.append("Solution method: %s" % E.getType())
-    lines.append('Solver time: %0.1fs' %float(toc-tic))
+    lines.append('Solver time: %0.1fs' % float(toc - tic))
 
     lines.append(' ')
 
@@ -80,8 +79,7 @@ def main():
     plot_folder = 'Eigenmodes/'
 
     file_u, file_p, file_e = (File(plot_folder + name + '.pvd')
-                                for name in ('eigvecs', 'eigpressures', 'eigvals'))
-
+                              for name in ('eigvecs', 'eigpressures', 'eigvals'))
 
     if nconv == 0:
         with open(eigvalue_results, "w+") as ffile:
@@ -93,7 +91,7 @@ def main():
 
         for i in range(nconv):
             k = E.getEigenpair(i, vr, vi)
-            lamda = 1.0/k.real
+            lamda = 1.0 / k.real
 
             u_r, u_im = Function(W), Function(W)
             E.getEigenpair(i, u_r.vector().vec(), u_im.vector().vec())
@@ -119,17 +117,14 @@ def main():
             lamda_i.rename('eigval', '0.0')
             file_e << (lamda_i, float(i))
 
-
-            if k.imag != 0.0: line =" %9f%+9f j" % (1.0/k.real, 1.0/k.imag)
-            else: line = " %12f" % (1.0/k.real)
-
+            if k.imag != 0.0:
+                line = " %9f%+9f j" % (1.0 / k.real, 1.0 / k.imag)
+            else:
+                line = " %12f" % (1.0 / k.real)
 
             print(line)
             with open(eigvalue_results, "a") as ffile:
                 ffile.write(line + '\n')
-
-
-
 
 
 def create_mesh(radius, length, N):
@@ -138,9 +133,7 @@ def create_mesh(radius, length, N):
     return mesh
 
 
-
 def setup_slepc_solver(A, B, target_eigvalue, max_it, n_eigvals):
-
     ## Solve eigenvalue problem using slepc
     from slepc4py import SLEPc
     E = SLEPc.EPS()
@@ -175,16 +168,16 @@ def setup_slepc_solver(A, B, target_eigvalue, max_it, n_eigvals):
     E.setDimensions(n_eigvals, n_krvecs)
     return E
 
+
 def D(u):
     gradu = grad(u)
     return gradu + gradu.T
 
 
 def get_eigenvalue_matrices(mesh, nu, u_init):
-
     dim = np.shape(mesh.coordinates())[1]
-    if dim==2: zero = Constant((0.0, 0.0))
-    if dim==3: zero = Constant((0.0, 0.0,0.0))
+    if dim == 2: zero = Constant((0.0, 0.0))
+    if dim == 3: zero = Constant((0.0, 0.0, 0.0))
 
     # Make a mixed space
     P2 = VectorElement("CG", mesh.ufl_cell(), 2)
@@ -198,7 +191,7 @@ def get_eigenvalue_matrices(mesh, nu, u_init):
     def all_boundaries(x, on_boundary):
         return on_boundary
 
-    bc = DirichletBC(W.sub(0),zero, all_boundaries)
+    bc = DirichletBC(W.sub(0), zero, all_boundaries)
 
     # Define variational problem
     (u, p, c) = TrialFunctions(W)
@@ -226,7 +219,6 @@ def get_eigenvalue_matrices(mesh, nu, u_init):
 
 
 def EIG_A_cyl(u, p, c, v, q, d, mu):
-
     eiga = (0.5 * mu * inner(D(u), D(v)) * dx - div(v) * p * dx - q * div(u) * dx
             + c * q * dx + d * p * dx
             )
@@ -234,9 +226,7 @@ def EIG_A_cyl(u, p, c, v, q, d, mu):
 
 
 def EIG_B_cyl(u, p, c, v, q, d, u0):
-    return 0.5*inner(dot(D(u0), v), u) * dx 
-
-
+    return 0.5 * inner(dot(D(u0), v), u) * dx
 
 
 if __name__ == '__main__':

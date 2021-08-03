@@ -18,7 +18,7 @@ def main():
     h_values = []
     solutions = []
     DOFs = []
-    N_values = [20, 27, 35]  # Resolution for mesh generation
+    N_values = [40]  # Resolution for mesh generation
 
     # Compute max velocity, Reynolds number and check ratio between length and radius of pipe
     U_max = (p_in - p_out) * radius ** 2 / (length * nu * rho * 4)
@@ -33,7 +33,7 @@ def main():
 
     # Solve for multiple grid resolutions
     for N in N_values:
-        u, p, boundaries, error, h, u_e, DOF = solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho)
+        u, p, boundaries, error, h, u_e, DOF = solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho,True)
         errors.append(error)
         h_values.append(h)
         DOFs.append(DOF)
@@ -44,8 +44,8 @@ def main():
     plot_velocity(solutions, u_e, N_values, DOFs, Re)
 
     # Save latest solution
-    File("velocity_dirichlet.pvd") << u
-    File("pressure_dirichlet.pvd") << p
+    File("velocity.pvd") << u
+    File("pressure.pvd") << p
     File("boundaries.pvd") << boundaries
 
 
@@ -74,7 +74,7 @@ def print_mesh_info(mesh):
 def set_boundaries(mesh, length, radius):
     class Wall(SubDomain):
         def inside(self, x, on_boundary):
-            return on_boundary and x[1] ** 2 + x[2] ** 2 > 0.95 * radius ** 2
+            return on_boundary and near(x[1] ** 2 + x[2] ** 2, radius**2,0.5*mesh.hmin())
 
     class Inlet(SubDomain):
         def inside(self, x, on_boundary):
@@ -98,7 +98,7 @@ def set_boundaries(mesh, length, radius):
     return boundaries
 
 
-def solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho):
+def solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho,saveh5):
     # Create mesh
     mesh = create_mesh(radius, length, N)
     h = mesh.hmin()
@@ -124,6 +124,7 @@ def solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho):
     bcp_out = DirichletBC(W.sub(1), Constant(p_out), boundaries, 3)
     bcs = [bcu_wall, bcp_in, bcp_out]
 
+
     # Variational form of steady NS-equations
     f = Constant((0, 0, 0))
     mu = nu * rho
@@ -135,7 +136,7 @@ def solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho):
     ds = Measure("ds", domain=mesh, subdomain_data=boundaries)
 
     a = nu * inner(nabla_grad(u), nabla_grad(v)) * dx
-    a += -nu * dot(dot(grad(u), n), v) * ds(2) - nu * dot(dot(grad(u), n), v) * ds(3)
+    #a += -nu * dot(dot(grad(u), n), v) * ds(2) - nu * dot(dot(grad(u), n), v) * ds(3)
     a += dot(dot(u, nabla_grad(u)), v) * dx
     a += -1 / rho * div(v) * p * dx + div(u) * q * dx
     L = inner(f, v) * dx
@@ -154,6 +155,14 @@ def solve_for_baseflow(radius, length, N, p_in, p_out, nu, rho):
 
     # Compute L2 error for x component
     error_l2, u_e = compute_l2_error(length, mesh, mu, p_in, p_out, radius, u)
+    if saveh5:
+        hdf = HDF5File(mesh.mpi_comm(), 'mesh'+ str(N)+'.h5', "w")
+        hdf.write(mesh, "mesh")
+        hdf.close()
+        file = HDF5File(mesh.mpi_comm(), 'u' + str(N)+ '.h5', "w")
+        file.write(u, "/u")
+        file.close()
+
 
     return u, p, boundaries, error_l2, h, u_e, DOF
 
@@ -168,7 +177,6 @@ def compute_l2_error(length, mesh, mu, p_in, p_out, radius, u):
     u_exact = interpolate(u_e, V)
     u_computed = interpolate(u.sub(0), V)
     error_L2 = errornorm(u_exact, u_computed, 'L2', degree_rise=1)
-
     return error_L2, u_e
 
 
