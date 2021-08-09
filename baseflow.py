@@ -100,8 +100,8 @@ mu   = 1.0
 radius  = 1.0
 nelem = 15
 
-poise_case = 1
-artery_case = 0
+poise_case = 0
+artery_case = 1
 
 if poise_case:
     # Make pipe mesh so we can solve for Poiseuille flow
@@ -112,7 +112,7 @@ if poise_case:
 
 if artery_case:
     # Get artery mesh
-    mesh = Mesh('Case_test_71.xml')
+    mesh = Mesh('Case_test_71.xml.gz')
     boundaries = MeshFunction("size_t", mesh, mesh.geometry().dim() - 1, mesh.domains())
     inflow_marker = [1]
     outflow_marker = [2,3]
