@@ -1,8 +1,65 @@
 from fenics import *
+from ffc.plot import PointSecondDerivative
 from mshr import *
 
-def baseflow(radius, nelem,nu, pin,pout):
+def navier_stokes(mesh, boundaries, nu, pin, pout, inflow_marker, outflow_marker, no_slip_marker):
 
+    # discrete function space 
+    P2 = VectorElement("Lagrange", mesh.ufl_cell(), 2)
+    P1 = FiniteElement("Lagrange", mesh.ufl_cell(), 1)
+
+    TH = MixedElement([P2, P1])
+    W  = FunctionSpace(mesh, TH)
+
+    up = Function(W)
+    (u,p) = split(up)
+    (v,q) = TestFunctions(W)
+
+    # boundary conditions 
+    bcu_noslip = DirichletBC(W.sub(0), Constant((0.0,0.0,0.0)), boundaries, no_slip_marker[0])
+    
+    dx = Measure('dx', domain = mesh)
+    ds = Measure('ds', domain = mesh,  subdomain_data = boundaries)
+
+    n    = FacetNormal(mesh)
+    nu   = Constant(nu)
+    f    = Constant((0,0,0))
+
+    a    = Constant(0.5*nu)*inner(D(u), D(v))*dx
+    a   +=  - div(v)*p*dx +  q*div(u)*dx + dot(dot(u, nabla_grad(u)),v)*dx
+    
+    L = dot(f, v)*dx
+
+    for im in inflow_marker:
+        a += -Constant(nu)*dot(nabla_grad(u)*n, v)*ds(im)
+        L += - Constant(pin)*dot(n,v)*ds(im)
+    
+    for om in outflow_marker:
+        a += -Constant(nu)*dot(nabla_grad(u)*n, v)*ds(om)
+        L += - Constant(pout)*dot(n,v)*ds(om)
+
+    
+    # solve 
+    F = a - L
+    dF = derivative(F,up)
+
+    PETScOptions.set("mat_mumps_icntl_4", 1) # level of printing from the solver (0-4)
+    PETScOptions.set("mat_mumps_icntl_14", 300) # percentage increase in the working space wrt memory
+    problem = NonlinearVariationalProblem(F, up, bcu_noslip, dF )
+    solver = NonlinearVariationalSolver(problem)
+    prm = solver.parameters
+    prm['newton_solver']['absolute_tolerance'] = 5E-8
+    prm['newton_solver']['relative_tolerance'] = 5E-14
+    prm['newton_solver']['maximum_iterations'] = 100
+    prm['newton_solver']['relaxation_parameter'] = 1.0
+    prm["newton_solver"]["linear_solver"] = "mumps"
+    solver.solve()
+
+    u, p = up.split(deepcopy=True)
+
+    return u, p
+
+def make_pipe_mesh(radius, nelem):
     # define a cylinder domain
     cylinder = Cylinder(Point(0,0,0), Point(1,0,0), radius,radius)
     geometry = cylinder
@@ -30,67 +87,43 @@ def baseflow(radius, nelem,nu, pin,pout):
 
     pressure_outflow = Outflow()
     pressure_outflow.mark(boundaries,3)
+    return mesh, boundaries
 
-    # discrete function space 
-    P2 = VectorElement("Lagrange", mesh.ufl_cell(), 2)
-    P1 = FiniteElement("Lagrange", mesh.ufl_cell(), 1)
-
-    TH = MixedElement([P2, P1])
-    W  = FunctionSpace(mesh, TH)
-
-    up = Function(W)
-    (u,p) = split(up)
-    (v,q) = TestFunctions(W)
-
-    # boundary conditions 
-    bcu_noslip = DirichletBC(W.sub(0), Constant((0.0,0.0,0.0)), boundaries, 1)
-    bcu_inflow = DirichletBC(W.sub(1),Constant(pin), boundaries, 2)
-    bcu_outflow= DirichletBC(W.sub(1),Constant(pout), boundaries, 3)
-
-    dx = Measure('dx', domain = mesh)
-    ds = Measure('ds',domain = mesh,  subdomain_data = boundaries)
-
-    n    = FacetNormal(mesh)
-    nu   = Constant(nu)
-    f    = Constant((0,0,0))
-
-    a   =Constant(0.5*nu)*inner(D(u), D(v))*dx
-    a += dot(dot(u, nabla_grad(u)),v)*dx - div(v)*p*dx +  q*div(u)*dx
-    a += -Constant(nu)*dot(nabla_grad(u)*n, v)*ds(2) -Constant(nu)*dot(nabla_grad(u)*n, v)*ds(3)
-    L = - Constant(pin)*dot(n,v)*ds(2) -Constant(pout)* dot(n,v)*ds(3)
-
-    L += dot(f, v)*dx
-
-    # solve 
-    F = a - L
-    dF = derivative(F,up)
-
-    PETScOptions.set("mat_mumps_icntl_14",300)
-
-
-    problem = NonlinearVariationalProblem(F, up,[bcu_noslip,bcu_inflow, bcu_outflow], dF )
-    solver = NonlinearVariationalSolver(problem)
-    solver.parameters['newton_solver']['linear_solver'] = 'mumps'
-    solver.parameters['newton_solver']['maximum_iterations'] = 10
-
-    solver.solve()
-    u,p = up.split(deepcopy = True)
-
-    return boundaries, u, p
 
 def D(u):
     grad_u = grad(u)
     return grad_u + grad_u.T
 
-pin  = 8.0
-pout = 0.0
+pin  = 2.0
+pout = 1.0
 mu   = 1.0
 radius  = 1.0
 nelem = 15
-boundaries, u,p = baseflow(radius, nelem, mu, pin, pout)
 
-file  = File("u.pvd")
+poise_case = 1
+artery_case = 0
+
+if poise_case:
+    # Make pipe mesh so we can solve for Poiseuille flow
+    mesh, boundaries = make_pipe_mesh(radius, nelem)
+    inflow_marker = [2]
+    outflow_marker = [3]
+    no_slip_marker = [1]
+
+if artery_case:
+    # Get artery mesh
+    mesh = Mesh('Case_test_71.xml')
+    boundaries = MeshFunction("size_t", mesh, mesh.geometry().dim() - 1, mesh.domains())
+    inflow_marker = [1]
+    outflow_marker = [2,3]
+    no_slip_marker = [0]
+
+## Solve for NS flow in mesh domain
+u,p = navier_stokes(mesh, boundaries, mu, pin, pout, inflow_marker, outflow_marker, no_slip_marker)
+
+
+file  = File("Plots/u.pvd")
 file << u
 
-file  = File("p.pvd")
+file  = File("Plots/p.pvd")
 file << p
