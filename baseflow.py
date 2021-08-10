@@ -115,8 +115,12 @@ if  __name__ == '__main__':
        # Get artery mesh
        mesh = Mesh('Case_test_71.xml.gz')
        boundaries = MeshFunction("size_t", mesh, mesh.geometry().dim() - 1, mesh.domains())
-       inflow_marker = [1]
-       outflow_marker = [2,3]
+       if mesh.num_cells() < 6E4:
+           inflow_marker = [3]
+           outflow_marker = [1, 2]
+       else:
+           inflow_marker = [1]
+           outflow_marker = [2, 3]
        no_slip_marker = [0]
 
     # Solve for NS flow in mesh domain
