@@ -94,36 +94,37 @@ def D(u):
     grad_u = grad(u)
     return grad_u + grad_u.T
 
-#pin  = 2.0
-#pout = 1.0
-#mu   = 1.0
-#radius  = 1.0
-#nelem = 15
+if  __name__ == '__main__':
+    pin  = 2.0
+    pout = 1.0
+    mu   = 1.0
+    radius  = 1.0
+    nelem = 15
 
-#poise_case = 0
-#artery_case = 1
+    poise_case = 0
+    artery_case = 1
 
-#if poise_case:
-#    # Make pipe mesh so we can solve for Poiseuille flow
-#    mesh, boundaries = make_pipe_mesh(radius, nelem)
-#    inflow_marker = [2]
-#    outflow_marker = [3]
-#    no_slip_marker = [1]
+    if poise_case:
+       # Make pipe mesh so we can solve for Poiseuille flow
+       mesh, boundaries = make_pipe_mesh(radius, nelem)
+       inflow_marker = [2]
+       outflow_marker = [3]
+       no_slip_marker = [1]
 
-#if artery_case:
-    # Get artery mesh
-#    mesh = Mesh('Case_test_71.xml.gz')
-#    boundaries = MeshFunction("size_t", mesh, mesh.geometry().dim() - 1, mesh.domains())
-#    inflow_marker = [1]
-#    outflow_marker = [2,3]
-#    no_slip_marker = [0]
+    if artery_case:
+       # Get artery mesh
+       mesh = Mesh('Case_test_71.xml.gz')
+       boundaries = MeshFunction("size_t", mesh, mesh.geometry().dim() - 1, mesh.domains())
+       inflow_marker = [1]
+       outflow_marker = [2,3]
+       no_slip_marker = [0]
 
-## Solve for NS flow in mesh domain
-#u,p = navier_stokes(mesh, boundaries, mu, pin, pout, inflow_marker, outflow_marker, no_slip_marker)
+    # Solve for NS flow in mesh domain
+    u,p = navier_stokes(mesh, boundaries, mu, pin, pout, inflow_marker, outflow_marker, no_slip_marker)
 
 
-#file  = File("Plots/u.pvd")
-#file << u
+    file  = File("Plots/u.pvd")
+    file << u
 
-#file  = File("Plots/p.pvd")
-#file << p
+    file  = File("Plots/p.pvd")
+    file << p
