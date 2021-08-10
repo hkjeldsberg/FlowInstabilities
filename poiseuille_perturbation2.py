@@ -2,39 +2,61 @@ import matplotlib.pyplot as plt
 import numpy as np
 from dolfin import *
 from mshr import *
+from baseflow import navier_stokes
+from baseflow import make_pipe_mesh
 
 
 def main():
     # Define parameters
-    p_in = 100
-    p_out = 0
+    p_in = 2.0
+    p_out = 1.0
     nu = 1.0
     rho = 1.0
     radius = 1
     length = 5
-
     N = 20  # Resolution for mesh generation
 
-    mesh = create_mesh(radius, length, N)
 
-    # Compute max velocity, Reynolds number and check ratio between length and radius of pipe
-    U_max = (p_in - p_out) * radius ** 2 / (length * nu * rho * 4)
-    Re = U_max * radius / nu
-    ratio = length / radius
-    if ratio <= 1 / 48 * Re:
-        print(ratio, 1 / 48 * Re, Re)
-        print("Ratio = length / radius must be larger than 1/48*Re for the Hagen–Poiseuille law to be valid.")
-        exit()
 
-    print("Reynolds number: {:.3f}".format(Re))
+    poise_case=0
+    artery_case=1
+    if poise_case:
+        # Make pipe mesh so we can solve for Poiseuille flow
+        mesh, boundaries = make_pipe_mesh(radius, N)
+        inflow_marker = [2]
+        outflow_marker = [3]
+        no_slip_marker = [1]
+
+        # Compute max velocity, Reynolds number and check ratio between length and radius of pipe
+        U_max = (p_in - p_out) * radius ** 2 / (length * nu * rho * 4)
+        Re = U_max * radius / nu
+        ratio = length / radius
+        if ratio <= 1 / 48 * Re:
+            print(ratio, 1 / 48 * Re, Re)
+            print("Ratio = length / radius must be larger than 1/48*Re for the Hagen–Poiseuille law to be valid.")
+            exit()
+
+        print("Reynolds number: {:.3f}".format(Re))
+
+    if artery_case:
+        # Get artery mesh
+        mesh = Mesh('Case_test_71.xml.gz')
+        boundaries = MeshFunction("size_t", mesh, mesh.geometry().dim() - 1, mesh.domains())
+        inflow_marker = [1]
+        outflow_marker = [2, 3]
+        no_slip_marker = [0]
+
+
+
+    u0,p= navier_stokes(mesh, boundaries, nu, p_in, p_out, inflow_marker, outflow_marker, no_slip_marker)
 
     # Setup Poiseuille solution, use this as baseflow
-    mu = nu * rho
-    delta_p = p_in - p_out
-    u0 = Expression(("delta_p / (L * mu * 4) * (R * R - x[1] * x[1] - x[2] * x[2] )", 0, 0),
-                    delta_p=delta_p, mu=mu, L=length, R=radius, degree=2)
+    #mu = nu * rho
+    #delta_p = p_in - p_out
+    #u0 = Expression(("delta_p / (L * mu * 4) * (R * R - x[1] * x[1] - x[2] * x[2] )", 0, 0),
+    #                delta_p=delta_p, mu=mu, L=length, R=radius, degree=2)
 
-    File('Eigenmodes/poseuille_baseflow.pvd') << interpolate(u0, VectorFunctionSpace(mesh, 'CG', 1, 3))
+    File('Eigenmodes/poseuille_baseflowtest.pvd') << interpolate(u0, VectorFunctionSpace(mesh, 'CG', 1, 3))
 
     ## Setup eigenvalue matrices and solver
     print('Setting up eigenvalue problem')
