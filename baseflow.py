@@ -1,6 +1,7 @@
 from fenics import *
 from ffc.plot import PointSecondDerivative
 from mshr import *
+from os import path
 
 def navier_stokes(mesh, boundaries, nu, pin, pout, inflow_marker, outflow_marker, no_slip_marker):
 
@@ -94,10 +95,10 @@ def get_marker_ids(case, inflow_marker, outflow_marker):
     if case in [0, 1]:
         inflow_marker = [1]
         outflow_marker = [2, 3]
-    elif case is 2:
+    elif case == 2:
         inflow_marker = [2]
         outflow_marker = [1, 3]
-    elif case is 3:
+    elif case == 3:
         inflow_marker = [2]
         outflow_marker = [1]
     else:
