@@ -113,7 +113,7 @@ if  __name__ == '__main__':
 
     if artery_case:
        # Get artery mesh
-       mesh = Mesh('Case_test_71.xml.gz')
+       mesh = Mesh('models/Case_test_71.xml.gz')
        boundaries = MeshFunction("size_t", mesh, mesh.geometry().dim() - 1, mesh.domains())
        if mesh.num_cells() < 6E4:
            inflow_marker = [3]
