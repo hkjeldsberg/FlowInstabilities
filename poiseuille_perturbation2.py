@@ -44,7 +44,7 @@ def main():
         mesh_name = path.join("models", case_names[case] + ".xml.gz")
         mesh = Mesh(mesh_name)
         boundaries = MeshFunction("size_t", mesh, mesh.geometry().dim() - 1, mesh.domains())
-        inflow_marker, outflow_marker = get_marker_ids(case, inflow_marker, outflow_marker)
+        inflow_marker, outflow_marker = get_marker_ids(case)
 
     u0,p= navier_stokes(mesh, boundaries, nu, p_in, p_out, inflow_marker, outflow_marker, no_slip_marker)
 

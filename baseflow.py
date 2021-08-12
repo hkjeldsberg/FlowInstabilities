@@ -91,7 +91,7 @@ def make_pipe_mesh(radius, nelem):
     return mesh, boundaries
 
 
-def get_marker_ids(case, inflow_marker, outflow_marker):
+def get_marker_ids(case):
     if case in [0, 1]:
         inflow_marker = [1]
         outflow_marker = [2, 3]
@@ -136,13 +136,7 @@ if  __name__ == '__main__':
        mesh_name = path.join("models", case_names[case] + ".xml.gz")
        mesh = Mesh(mesh_name)
        boundaries = MeshFunction("size_t", mesh, mesh.geometry().dim() - 1, mesh.domains())
-       inflow_marker, outflow_marker = get_marker_ids(case, inflow_marker, outflow_marker)
-       if mesh.num_cells() < 6E4:
-           inflow_marker = [3]
-           outflow_marker = [1, 2]
-       else:
-           inflow_marker = [1]
-           outflow_marker = [2, 3]
+       inflow_marker, outflow_marker = get_marker_ids(case)
        no_slip_marker = [0]
 
     # Solve for NS flow in mesh domain
