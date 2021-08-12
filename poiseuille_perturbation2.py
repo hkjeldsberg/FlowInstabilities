@@ -6,20 +6,21 @@ from os import path
 
 
 def main():
-    # Define parameters
-    p_in = 2.0
-    p_out = 1.0
-    nu = 1.0
-    rho = 1.0
-    radius = 1
-    length = 5
-    N = 20  # Resolution for mesh generation
-
-
-
+    
     poise_case=0
     artery_case=1
+
     if poise_case:
+        # Define parameters
+        p_in = 2.0
+        p_out = 1.0
+        nu = 1.0
+        rho = 1.0
+        radius = 1
+        length = 5
+        N = 20  # Resolution for mesh generation
+
+
         # Make pipe mesh so we can solve for Poiseuille flow
         mesh, boundaries = make_pipe_mesh(radius, N)
         inflow_marker = [2]
@@ -38,13 +39,25 @@ def main():
         print("Reynolds number: {:.3f}".format(Re))
 
     if artery_case:
+
         # Get artery mesh
         case_names = ["C0015_healthy", "C0015_terminal", "C0019", "C0065_healthy", "C0065_saccular"]
         case = 3
         mesh_name = path.join("models", case_names[case] + ".xml.gz")
         mesh = Mesh(mesh_name)
         boundaries = MeshFunction("size_t", mesh, mesh.geometry().dim() - 1, mesh.domains())
-        inflow_marker, outflow_marker = get_marker_ids(case)
+        File('boundaries.pvd') << boundaries
+        inflow_marker, outflow_marker, no_slip_marker = get_marker_ids(case)
+
+        # Rescale mesh from mm to m 
+        coords = mesh.coordinates()
+        coords *= 1.0e-3
+
+        nu = 3.0e-2 # dyn visc of blood is 3 cP
+        p_in = 0.0
+        mmHg = 133.0
+        p_out = 5.0*mmHg
+
 
     u0,p= navier_stokes(mesh, boundaries, nu, p_in, p_out, inflow_marker, outflow_marker, no_slip_marker)
 

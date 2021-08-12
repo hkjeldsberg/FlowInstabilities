@@ -104,8 +104,9 @@ def get_marker_ids(case):
     else:
         inflow_marker = [1]
         outflow_marker = [2]
+    no_slip_marker = [0]
 
-    return inflow_marker, outflow_marker
+    return inflow_marker, outflow_marker, no_slip_marker
 
 
 def D(u):
@@ -136,8 +137,7 @@ if  __name__ == '__main__':
        mesh_name = path.join("models", case_names[case] + ".xml.gz")
        mesh = Mesh(mesh_name)
        boundaries = MeshFunction("size_t", mesh, mesh.geometry().dim() - 1, mesh.domains())
-       inflow_marker, outflow_marker = get_marker_ids(case)
-       no_slip_marker = [0]
+       inflow_marker, outflow_marker, no_slip_marker = get_marker_ids(case)
 
     # Solve for NS flow in mesh domain
     u,p = navier_stokes(mesh, boundaries, mu, pin, pout, inflow_marker, outflow_marker, no_slip_marker)
