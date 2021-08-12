@@ -90,6 +90,23 @@ def make_pipe_mesh(radius, nelem):
     return mesh, boundaries
 
 
+def get_marker_ids(case, inflow_marker, outflow_marker):
+    if case in [0, 1]:
+        inflow_marker = [1]
+        outflow_marker = [2, 3]
+    elif case is 2:
+        inflow_marker = [2]
+        outflow_marker = [1, 3]
+    elif case is 3:
+        inflow_marker = [2]
+        outflow_marker = [1]
+    else:
+        inflow_marker = [1]
+        outflow_marker = [2]
+
+    return inflow_marker, outflow_marker
+
+
 def D(u):
     grad_u = grad(u)
     return grad_u + grad_u.T
@@ -113,8 +130,12 @@ if  __name__ == '__main__':
 
     if artery_case:
        # Get artery mesh
-       mesh = Mesh('models/Case_test_71.xml.gz')
+       case_names = ["C0015_healthy", "C0015_terminal", "C0019", "C0065_healthy", "C0065_saccular"]
+       case = 3
+       mesh_name = path.join("models", case_names[case] + ".xml.gz")
+       mesh = Mesh(mesh_name)
        boundaries = MeshFunction("size_t", mesh, mesh.geometry().dim() - 1, mesh.domains())
+       inflow_marker, outflow_marker = get_marker_ids(case, inflow_marker, outflow_marker)
        if mesh.num_cells() < 6E4:
            inflow_marker = [3]
            outflow_marker = [1, 2]

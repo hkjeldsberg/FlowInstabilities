@@ -1,9 +1,8 @@
-import matplotlib.pyplot as plt
 import numpy as np
 from dolfin import *
 from mshr import *
-from baseflow import navier_stokes
-from baseflow import make_pipe_mesh
+from baseflow import navier_stokes, make_pipe_mesh, get_marker_ids
+from os import path
 
 
 def main():
@@ -40,15 +39,12 @@ def main():
 
     if artery_case:
         # Get artery mesh
-        mesh = Mesh('Case_test_71.xml.gz')
+        case_names = ["C0015_healthy", "C0015_terminal", "C0019", "C0065_healthy", "C0065_saccular"]
+        case = 3
+        mesh_name = path.join("models", case_names[case] + ".xml.gz")
+        mesh = Mesh(mesh_name)
         boundaries = MeshFunction("size_t", mesh, mesh.geometry().dim() - 1, mesh.domains())
-        if mesh.num_cells() < 6E4:
-            inflow_marker = [3]
-            outflow_marker = [1, 2]
-        else:
-            inflow_marker = [1]
-            outflow_marker = [2, 3]
-        no_slip_marker = [0]
+        inflow_marker, outflow_marker = get_marker_ids(case, inflow_marker, outflow_marker)
 
     u0,p= navier_stokes(mesh, boundaries, nu, p_in, p_out, inflow_marker, outflow_marker, no_slip_marker)
 
