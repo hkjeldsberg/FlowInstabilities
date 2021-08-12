@@ -73,7 +73,7 @@ def main():
     print('Setting up eigenvalue problem')
     A, B, W = get_eigenvalue_matrices(mesh, nu, u_init=u0)
 
-    E = setup_slepc_solver(A, B, target_eigvalue=-1.0e-5, max_it=5, n_eigvals=12)
+    E = setup_slepc_solver(A, B, target_eigvalue=-1.0e-5, max_it=5, n_eigvals=6)
 
     # Solve for eigenvalues
     print('Solving eigenvalue problem')
