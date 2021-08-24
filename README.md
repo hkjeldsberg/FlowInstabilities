@@ -19,7 +19,7 @@ Installation
 
 For reference, FlowInstabilities requires the following dependencies: FEniCS >= 2018.1.0, Numpy >= 1.13 and SLEPc4Py >= 3.0.0.
 To run the cylinder case (Poiseuille flow) there is an additional dependency: mshr >= 2018.  
-If you are on Windows, macOS or Linux you can install all the general dependencies through anaconda.
+If you are on Windows, macOS or Linux you can install all the general dependencies through Anaconda or Miniconda.
 
 Usage
 -----
