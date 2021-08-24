@@ -26,7 +26,7 @@ Usage
 -----
 Inside a FEniCS/SLEPc environment, execute the following command to run the main script for case 0, kinematic viscosity of 0.1 and a pressure drop of 5 mmHg
 
-        python find_pertubation.py --case 0 --nu 0.1 --delta_p 5
+        python find_perturbation.py --case 0 --nu 0.1 --delta_p 5
 
 The results will be located in the `Eigenmodes` folder.
 Alternatively, you can solve explicitly for the base flow by executing the following command.
