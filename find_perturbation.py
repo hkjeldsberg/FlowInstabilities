@@ -1,14 +1,15 @@
+from os import path, listdir
+
 import numpy as np
 from dolfin import *
-from mshr import *
+
 from baseflow import navier_stokes, make_pipe_mesh, get_marker_ids
-from os import path
 
 
 def main(case, delta_p):
     print('Running case: ' + case)
-    
-    if case.find('poise')>-1:
+
+    if case.find('poise') > -1:
         print('Running poise case')
         # Define parameters
         p_in = 2.0
@@ -18,7 +19,6 @@ def main(case, delta_p):
         radius = 1
         length = 5
         N = 10  # Resolution for mesh generation
-
 
         # Make pipe mesh so we can solve for Poiseuille flow
         mesh, boundaries = make_pipe_mesh(radius, N)
@@ -35,7 +35,7 @@ def main(case, delta_p):
             print("Ratio = length / radius must be larger than 1/48*Re for the Hagen–Poiseuille law to be valid.")
             exit()
 
-        results_folder = 'aneurysm/Eigenmodes/poiseuille/'
+        results_folder = 'Eigenmodes/poiseuille/'
 
         print("Reynolds number: {:.3f}".format(Re))
 
@@ -43,11 +43,11 @@ def main(case, delta_p):
 
         # Get artery mesh
         case_names = ["C0015_healthy", "C0015_terminal", "C0019", "C0065_healthy", "C0065_saccular"]
-        case  = int(case)
+        case = int(case)
 
         print('Running artery case ' + case_names[case])
         mesh_name = path.join("models", case_names[case] + ".xml.gz")
-        mesh = Mesh('aneurysm/' + mesh_name)
+        mesh = Mesh(mesh_name)
         boundaries = MeshFunction("size_t", mesh, mesh.geometry().dim() - 1, mesh.domains())
         inflow_marker, outflow_marker, no_slip_marker = get_marker_ids(case)
 
@@ -55,25 +55,25 @@ def main(case, delta_p):
         coords = mesh.coordinates()
         coords *= 1.0e-3
 
-        nu = 3.0e-6 # kinematic visc of blood is 3 cP
+        nu = 3.0e-6  # kinematic visc of blood is 3 cP
         mmHg = 133.0
-        p_in = delta_p*mmHg
+        p_in = delta_p * mmHg
         p_out = 0.0
 
-        results_folder = 'aneurysm/Eigenmodes/' + case_names[case] + '/' + str(int(delta_p)) + 'mmHg/'
+        results_folder = 'Eigenmodes/' + case_names[case] + '/' + str(int(delta_p)) + 'mmHg/'
 
     print('Results will be stored in ' + results_folder)
 
-
     # Check if baseflow is already computed
-    import os as os
-    str_match = max([ffile.find('u0') for ffile in os.listdir(results_folder)])
-    baseflow_file_exists = (str_match > -1)    
-    
+    baseflow_file_exists = False
+    if path.exists(results_folder):
+        str_match = max([ffile.find('u0') for ffile in listdir(results_folder)])
+        baseflow_file_exists = (str_match > -1)
+
     if baseflow_file_exists:
         print('Using previously computed baseflow')
         ## Set up mesh
-        mesh = Mesh()   
+        mesh = Mesh()
         h5 = HDF5File(mesh.mpi_comm(), results_folder + 'mesh.h5', 'r')
         h5.read(mesh, '/mesh', False)
 
@@ -85,9 +85,9 @@ def main(case, delta_p):
         uf.read(u0, "/u")
         uf.close()
 
-    else: 
+    else:
         print('Computing baseflow')
-        u0, p= navier_stokes(mesh, boundaries, nu, p_in, p_out, inflow_marker, outflow_marker, no_slip_marker)
+        u0, p = navier_stokes(mesh, boundaries, nu, p_in, p_out, inflow_marker, outflow_marker, no_slip_marker)
 
         file = HDF5File(mesh.mpi_comm(), results_folder + 'mesh.h5', "w")
         file.write(p.function_space().mesh(), "/mesh")
@@ -101,8 +101,6 @@ def main(case, delta_p):
         file.write(p, "/p")
         file.close()
 
-    
-    
     File(results_folder + 'baseflow.pvd') << interpolate(u0, VectorFunctionSpace(mesh, 'CG', 1, 3))
 
     ## Setup eigenvalue matrices and solver
@@ -296,16 +294,17 @@ def EIG_B_cyl(u, p, c, v, q, d, u0):
     return 0.5 * inner(dot(D(u0), v), u) * dx
 
 
-                    
 import argparse
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # Problem parameters, nu is allowed to be a list
-    parser.add_argument('--case', help='which case to run. \n Options: poise, 0 (C0015_healthy), 1 (C0015_terminal), 2 (C0019), 3 (C0065_healthy), 4 (C0065_healthy)', default='poise', type=str)
+    parser.add_argument('--case',
+                        help='which case to run. \n Options: poise, 0 (C0015_healthy), 1 (C0015_terminal), 2 (C0019), 3 (C0065_healthy), 4 (C0065_healthy)',
+                        default='poise', type=str)
     parser.add_argument('--delta_p', help='pressure drop in mmHg', default=5, type=float)
 
     args = parser.parse_args()
-    
+
     main(args.case, args.delta_p)
