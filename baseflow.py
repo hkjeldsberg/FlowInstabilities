@@ -50,11 +50,9 @@ def solve_navier_stokes(mesh, boundaries, nu, pin, pout, inflow_marker, outflow_
     L = dot(f, v) * dx
 
     for im in inflow_marker:
-        a += -Constant(nu) * dot(nabla_grad(u) * n, v) * ds(im)
         L += - Constant(pin) * dot(n, v) * ds(im)
 
     for om in outflow_marker:
-        a += -Constant(nu) * dot(nabla_grad(u) * n, v) * ds(om)
         L += - Constant(pout) * dot(n, v) * ds(om)
 
     # Solve variational problem
