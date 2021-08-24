@@ -1,11 +1,29 @@
 from os import path
 
 from fenics import *
-from mshr import *
+from mshr import Cylinder, generate_mesh
 
 
-def navier_stokes(mesh, boundaries, nu, pin, pout, inflow_marker, outflow_marker, no_slip_marker):
-    # discrete function space
+def solve_navier_stokes(mesh, boundaries, nu, pin, pout, inflow_marker, outflow_marker, no_slip_marker):
+    """
+    Setup and solve the incompressible Navier-Stokes equations given a pressure drop throughout
+    the domain.
+
+    Args:
+        mesh (Mesh): Mesh of problem domain
+        boundaries (MeshFunction): Function determining the boundaries of the mesh
+        nu (float): Dynamic viscosity
+        pin (float): Predefined pressure value at inlet(s)
+        pout (float): Predefined pressure value at outlet(s)
+        inflow_marker (list): ID(s) corresponding to inlet(s) of mesh
+        outflow_marker (list): ID(s) corresponding to outlet(s) of mesh
+        no_slip_marker (list): ID(s) corresponding to wall(s) of mesh
+
+    Returns:
+        u (Function): Velocity field solution
+        p (Function): Pressure field solution
+    """
+    # Set up discrete function space
     P2 = VectorElement("Lagrange", mesh.ufl_cell(), 2)
     P1 = FiniteElement("Lagrange", mesh.ufl_cell(), 1)
 
@@ -16,8 +34,8 @@ def navier_stokes(mesh, boundaries, nu, pin, pout, inflow_marker, outflow_marker
     (u, p) = split(up)
     (v, q) = TestFunctions(W)
 
-    # boundary conditions 
-    bcu_noslip = DirichletBC(W.sub(0), Constant((0.0, 0.0, 0.0)), boundaries, no_slip_marker[0])
+    # Set boundary conditions
+    bcu_no_slip = DirichletBC(W.sub(0), Constant((0.0, 0.0, 0.0)), boundaries, no_slip_marker[0])
 
     dx = Measure('dx', domain=mesh)
     ds = Measure('ds', domain=mesh, subdomain_data=boundaries)
@@ -39,13 +57,13 @@ def navier_stokes(mesh, boundaries, nu, pin, pout, inflow_marker, outflow_marker
         a += -Constant(nu) * dot(nabla_grad(u) * n, v) * ds(om)
         L += - Constant(pout) * dot(n, v) * ds(om)
 
-    # solve
+    # Solve variational problem
     F = a - L
     dF = derivative(F, up)
 
-    PETScOptions.set("mat_mumps_icntl_4", 1)  # level of printing from the solver (0-4)
-    PETScOptions.set("mat_mumps_icntl_14", 300)  # percentage increase in the working space wrt memory
-    problem = NonlinearVariationalProblem(F, up, bcu_noslip, dF)
+    PETScOptions.set("mat_mumps_icntl_4", 1)  # Level of printing from the solver (0-4)
+    PETScOptions.set("mat_mumps_icntl_14", 300)  # Percentage increase in the working space wrt memory
+    problem = NonlinearVariationalProblem(F, up, bcu_no_slip, dF)
     solver = NonlinearVariationalSolver(problem)
     prm = solver.parameters
     prm['newton_solver']['absolute_tolerance'] = 5E-8
@@ -60,16 +78,29 @@ def navier_stokes(mesh, boundaries, nu, pin, pout, inflow_marker, outflow_marker
     return u, p
 
 
-def make_pipe_mesh(radius, nelem):
-    # define a cylinder domain
+def make_pipe_mesh(radius, n_elem):
+    """
+    Setup mesh for the cylinder problem and define
+    domain boundaries used to set boundary conditions.
+
+    Args:
+        radius (float): Radius of cylinder
+        n_elem (int): Mesh resolution
+
+    Returns:
+        mesh (Mesh): Mesh of cylinder domain
+        boundaries (MeshFunction): Function determining the boundaries of the mesh
+    """
+    # Define a cylinder domain
     cylinder = Cylinder(Point(0, 0, 0), Point(1, 0, 0), radius, radius)
     geometry = cylinder
-    # define the mesh 
-    mesh = generate_mesh(geometry, nelem)
+
+    # Define the mesh
+    mesh = generate_mesh(geometry, n_elem)
     boundaries = MeshFunction('size_t', mesh, mesh.topology().dim() - 1)
     boundaries.set_all(0)
 
-    # mark the inflow, outflow and the walls
+    # Mark the inflow, outflow and the walls
     class Noslip(SubDomain):
         def inside(self, x, on_boundary):
             return on_boundary and x[1] ** 2 + x[2] ** 2 > 0.95 * radius ** 2
@@ -90,10 +121,23 @@ def make_pipe_mesh(radius, nelem):
 
     pressure_outflow = Outflow()
     pressure_outflow.mark(boundaries, 3)
+
     return mesh, boundaries
 
 
 def get_marker_ids(case):
+    """
+    Determine the IDs which define the inlet(s), outlet(s) and wall(s)
+    of the given case.
+
+    Args:
+        case (int): Number corresponding to case ID
+
+    Returns:
+        inflow_marker (list): ID(s) corresponding to inlet(s) of mesh
+        outflow_marker (list): ID(s) corresponding to outlet(s) of mesh
+        no_slip_marker (list): ID(s) corresponding to wall(s) of mesh
+    """
     if case in [0, 1]:
         inflow_marker = [1]
         outflow_marker = [2, 3]
@@ -121,14 +165,14 @@ if __name__ == '__main__':
     pout = 1.0
     mu = 1.0
     radius = 1.0
-    nelem = 15
+    n_elem = 15
 
     poise_case = 0
     artery_case = 1
 
     if poise_case:
         # Make pipe mesh so we can solve for Poiseuille flow
-        mesh, boundaries = make_pipe_mesh(radius, nelem)
+        mesh, boundaries = make_pipe_mesh(radius, n_elem)
         inflow_marker = [2]
         outflow_marker = [3]
         no_slip_marker = [1]
@@ -143,10 +187,10 @@ if __name__ == '__main__':
         inflow_marker, outflow_marker, no_slip_marker = get_marker_ids(case)
 
     # Solve for NS flow in mesh domain
-    u, p = navier_stokes(mesh, boundaries, mu, pin, pout, inflow_marker, outflow_marker, no_slip_marker)
+    u, p = solve_navier_stokes(mesh, boundaries, mu, pin, pout, inflow_marker, outflow_marker, no_slip_marker)
 
-    file = File("Plots/u.pvd")
+    file = File("Baseflow/u.pvd")
     file << u
 
-    file = File("Plots/p.pvd")
+    file = File("Baseflow/p.pvd")
     file << p

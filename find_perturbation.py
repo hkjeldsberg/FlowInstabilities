@@ -1,12 +1,24 @@
+import argparse
+import time
 from os import path, listdir
 
 import numpy as np
 from dolfin import *
+from slepc4py import SLEPc
 
-from baseflow import navier_stokes, make_pipe_mesh, get_marker_ids
+from baseflow import solve_navier_stokes, make_pipe_mesh, get_marker_ids, D
 
 
-def main(case, delta_p):
+def main(case, delta_p, nu):
+    """
+    Find the baseflow for the given problem, and define and solve
+    the eigenvalue problem for the flow pertubation
+
+    Args:
+        case (str): Case number (or string) for the problem
+        delta_p (float): Pressure drop
+        nu (float): Kinematic viscosity
+    """
     print('Running case: ' + case)
 
     if case.find('poise') > -1:
@@ -14,14 +26,13 @@ def main(case, delta_p):
         # Define parameters
         p_in = 2.0
         p_out = 1.0
-        nu = 1.0
         rho = 1.0
         radius = 1
         length = 5
-        N = 10  # Resolution for mesh generation
+        n_elem = 10  # Resolution for mesh generation
 
         # Make pipe mesh so we can solve for Poiseuille flow
-        mesh, boundaries = make_pipe_mesh(radius, N)
+        mesh, boundaries = make_pipe_mesh(radius, n_elem)
         inflow_marker = [2]
         outflow_marker = [3]
         no_slip_marker = [1]
@@ -55,12 +66,11 @@ def main(case, delta_p):
         coords = mesh.coordinates()
         coords *= 1.0e-3
 
-        nu = 3.0e-6  # kinematic visc of blood is 3 cP
         mmHg = 133.0
         p_in = delta_p * mmHg
         p_out = 0.0
 
-        results_folder = 'Eigenmodes/' + case_names[case] + '/' + str(int(delta_p)) + 'mmHg/'
+        results_folder = path.join('Eigenmodes/', case_names[case], str(int(delta_p)) + 'mmHg')
 
     print('Results will be stored in ' + results_folder)
 
@@ -72,65 +82,63 @@ def main(case, delta_p):
 
     if baseflow_file_exists:
         print('Using previously computed baseflow')
-        ## Set up mesh
+        # Set up mesh
         mesh = Mesh()
-        h5 = HDF5File(mesh.mpi_comm(), results_folder + 'mesh.h5', 'r')
+        h5 = HDF5File(mesh.mpi_comm(), path.join(results_folder, 'mesh.h5'), 'r')
         h5.read(mesh, '/mesh', False)
 
         P2 = VectorFunctionSpace(mesh, 'CG', 2, 3)
-        P1 = FunctionSpace(mesh, 'CG', 1)
 
-        uf = HDF5File(mesh.mpi_comm(), results_folder + 'u0.h5', "r")
+        uf = HDF5File(mesh.mpi_comm(), path.join(results_folder, 'u0.h5'), "r")
         u0 = Function(P2)
         uf.read(u0, "/u")
         uf.close()
 
     else:
         print('Computing baseflow')
-        u0, p = navier_stokes(mesh, boundaries, nu, p_in, p_out, inflow_marker, outflow_marker, no_slip_marker)
+        u0, p = solve_navier_stokes(mesh, boundaries, nu, p_in, p_out, inflow_marker, outflow_marker, no_slip_marker)
 
-        file = HDF5File(mesh.mpi_comm(), results_folder + 'mesh.h5', "w")
+        file = HDF5File(mesh.mpi_comm(), path.join(results_folder, 'mesh.h5'), "w")
         file.write(p.function_space().mesh(), "/mesh")
         file.close()
 
-        file = HDF5File(mesh.mpi_comm(), results_folder + 'u0.h5', "w")
+        file = HDF5File(mesh.mpi_comm(), path.join(results_folder, 'u0.h5'), "w")
         file.write(u0, "/u")
         file.close()
 
-        file = HDF5File(mesh.mpi_comm(), results_folder + 'p0.h5', "w")
+        file = HDF5File(mesh.mpi_comm(), path.join(results_folder, 'p0.h5'), "w")
         file.write(p, "/p")
         file.close()
 
-    File(results_folder + 'baseflow.pvd') << interpolate(u0, VectorFunctionSpace(mesh, 'CG', 1, 3))
+    File(path.join(results_folder, 'baseflow.pvd')) << interpolate(u0, VectorFunctionSpace(mesh, 'CG', 1, 3))
 
-    ## Setup eigenvalue matrices and solver
+    # Setup eigenvalue matrices and solver
     print('Setting up eigenvalue problem, storing results in ' + results_folder)
     A, B, W = get_eigenvalue_matrices(mesh, nu, u_init=u0)
 
-    E = setup_slepc_solver(A, B, target_eigvalue=-1.0e-5, max_it=5, n_eigvals=6)
+    E = setup_slepc_solver(A, B, target_eigenvalue=-1.0e-5, max_it=5, n_eigenvalues=6)
 
     # Solve for eigenvalues
     print('Solving eigenvalue problem')
-    import time
     tic = time.perf_counter()
     E.solve()
     toc = time.perf_counter()
     print('Done solving, process took %4.0f s' % float(toc - tic))
 
     # Write the results to terminal and a .text file
-    eigvalue_results = results_folder + 'Eigenmodes'
+    eigenvalue_results = results_folder + 'Eigenmodes'
 
     nev, ncv, mpd = E.getDimensions()  # number of requested eigenvalues and Krylov vectors
-    nconv = E.getConverged()
+    n_converged = E.getConverged()
 
     print('****** nu:', nu, '******')
 
     lines = []
-    lines.append('Parameters: nu %1.4f' % (nu))
+    lines.append('Parameters: nu %1.4f' % nu)
     lines.append("Number of iterations of the method: %d" % E.getIterationNumber())
     lines.append("Number of requested eigenvalues: %d" % nev)
     lines.append("Stopping condition: tol=%.4g, maxit=%d" % E.getTolerances())
-    lines.append("Number of converged eigenpairs: %d" % nconv)
+    lines.append("Number of converged eigenpairs: %d" % n_converged)
     lines.append("Solution method: %s" % E.getType())
     lines.append('Solver time: %0.1fs' % float(toc - tic))
 
@@ -139,35 +147,35 @@ def main(case, delta_p):
     lines.append("      lambda   (residual)    lambda_num  lamda_den")
     lines.append("---------------------------------------------------\n")
 
-    with open(eigvalue_results, "w") as ffile:
-        ffile.write('\n'.join(lines))
+    with open(eigenvalue_results, "w") as f:
+        f.write('\n'.join(lines))
         print('\n'.join(lines))
 
-    file_u, file_p, file_e = (File(results_folder + name + '.pvd')
-                              for name in ('eigvecs', 'eigpressures', 'eigvals'))
+    file_u, file_p, file_e = (File(results_folder + name + '.pvd') for name in ('eigvecs', 'eigpressures', 'eigvals'))
 
-    if nconv == 0:
-        with open(eigvalue_results, "w+") as ffile:
-            ffile.write('No converged values :( ')
-    if nconv > 0:
+    if n_converged == 0:
+        with open(eigenvalue_results, "w+") as f:
+            f.write('No converged values :( ')
+
+    if n_converged > 0:
         # Create the results vectors
         vr, wr = A.getVecs()
         vi, wi = A.getVecs()
 
-        for i in range(nconv):
+        for i in range(n_converged):
             k = E.getEigenpair(i, vr, vi)
-            lamda = 1.0 / k.real
+            lambda_ = 1.0 / k.real
 
             u_r, u_im = Function(W), Function(W)
             E.getEigenpair(i, u_r.vector().vec(), u_im.vector().vec())
             u, p, c = u_r.split()
 
             # Store eigenmode
-            fFile = HDF5File(MPI.comm_world, results_folder + 'eigvecs' + '_n' + str(i) + ".h5", "w")
+            fFile = HDF5File(MPI.comm_world, path.join(results_folder, 'eigvecs' + '_n' + str(i) + ".h5"), "w")
             fFile.write(u, "/f")
             fFile.close()
 
-            fFile = HDF5File(MPI.comm_world, results_folder + 'eigenmode' + '_n' + str(i) + ".h5", "w")
+            fFile = HDF5File(MPI.comm_world, path.join(results_folder, 'eigenmode' + '_n' + str(i) + ".h5"), "w")
             fFile.write(u_r, "/f")
             fFile.close()
 
@@ -178,9 +186,9 @@ def main(case, delta_p):
             p.rename('eigpressure', '0.0')
             file_p << (p, float(i))
 
-            lamda_i = interpolate(Constant(lamda), W.sub(2).collapse())
-            lamda_i.rename('eigval', '0.0')
-            file_e << (lamda_i, float(i))
+            lambda_i = interpolate(Constant(lambda_), W.sub(2).collapse())
+            lambda_i.rename('eigval', '0.0')
+            file_e << (lambda_i, float(i))
 
             if k.imag != 0.0:
                 line = " %9f%+9f j" % (1.0 / k.real, 1.0 / k.imag)
@@ -188,19 +196,25 @@ def main(case, delta_p):
                 line = " %12f" % (1.0 / k.real)
 
             print(line)
-            with open(eigvalue_results, "a") as ffile:
-                ffile.write(line + '\n')
+            with open(eigenvalue_results, "a") as f:
+                f.write(line + '\n')
 
 
-def create_mesh(radius, length, N):
-    cylinder = Cylinder(Point(0, 0, 0), Point(length, 0, 0), radius, radius)
-    mesh = generate_mesh(cylinder, N)
-    return mesh
+def setup_slepc_solver(A, B, target_eigenvalue, max_it, n_eigenvalues):
+    """
+    Setup and solve the eigenvalue problem using SLEPc, given
+    the right and left hand side of the equation.
 
+    Args:
+        A (PETScMatrix): Assembled matrix system (LHS)
+        B (PETScMatrix): Assembled matrix system (RHS)
+        target_eigenvalue (float): Target eigenvalue
+        max_it (int): Maximum iterations for SLEPc solver
+        n_eigenvalues (int): Number of eigenvalues to compute
 
-def setup_slepc_solver(A, B, target_eigvalue, max_it, n_eigvals):
-    ## Solve eigenvalue problem using slepc
-    from slepc4py import SLEPc
+    Returns:
+        E (EPS): Eigenvalue problem solver, containing eigenproblem solution
+    """
     E = SLEPc.EPS()
     E.create()
 
@@ -212,7 +226,7 @@ def setup_slepc_solver(A, B, target_eigvalue, max_it, n_eigvals):
     # Specify solvers and target values
     E.setType(SLEPc.EPS.Type.KRYLOVSCHUR)
     E.setWhichEigenpairs(E.Which.TARGET_MAGNITUDE)
-    E.setTarget(target_eigvalue)
+    E.setTarget(target_eigenvalue)
 
     E.setFromOptions()
 
@@ -228,21 +242,32 @@ def setup_slepc_solver(A, B, target_eigvalue, max_it, n_eigvals):
 
     E.setTolerances(tol=1.0e-8, max_it=max_it)
 
-    n_krvecs = int(3.0 * n_eigvals)
+    n_krylov_space = int(3.0 * n_eigenvalues)
 
-    E.setDimensions(n_eigvals, n_krvecs)
+    E.setDimensions(n_eigenvalues, n_krylov_space)
     return E
 
 
-def D(u):
-    gradu = grad(u)
-    return gradu + gradu.T
-
-
 def get_eigenvalue_matrices(mesh, nu, u_init):
+    """
+    Define eigenvalue problem matrices A and B used to
+    find the flow perturbation and corresponding eigenvalues
+
+    Args:
+        mesh (Mesh): Mesh of problem domain
+        nu (float): Dynamic viscosity
+        u_init (Function): Baseflow solution
+
+    Returns:
+        A (PETScMatrix): Left hand side of the eigenvalue problem
+        B (PETScMatrix): Right hand side of the eigenvalue problem
+        W (FunctionSpace): FEniCS function space for the given mesh
+    """
     dim = np.shape(mesh.coordinates())[1]
-    if dim == 2: zero = Constant((0.0, 0.0))
-    if dim == 3: zero = Constant((0.0, 0.0, 0.0))
+    if dim == 2:
+        zero = Constant((0.0, 0.0))
+    if dim == 3:
+        zero = Constant((0.0, 0.0, 0.0))
 
     # Make a mixed space
     P2 = VectorElement("CG", mesh.ufl_cell(), 2)
@@ -280,31 +305,41 @@ def get_eigenvalue_matrices(mesh, nu, u_init):
     return A, B, W
 
 
-## Set up operators for eigenvalue problem ##
-
-
 def EIG_A_cyl(u, p, c, v, q, d, mu):
-    eiga = (0.5 * mu * inner(D(u), D(v)) * dx - div(v) * p * dx - q * div(u) * dx
-            + c * q * dx + d * p * dx
-            )
-    return eiga
+    """
+    Set up operators for eigenvalue problem (Left hand side)
+    """
+    eig_a = (0.5 * mu * inner(D(u), D(v)) * dx - div(v) * p * dx - q * div(u) * dx
+             + c * q * dx + d * p * dx)
+    return eig_a
 
 
 def EIG_B_cyl(u, p, c, v, q, d, u0):
-    return 0.5 * inner(dot(D(u0), v), u) * dx
+    """
+    Set up operators for eigenvalue problem (Right hand side)
+    """
+    eig_b = 0.5 * inner(dot(D(u0), v), u) * dx
+    return eig_b
 
 
-import argparse
-
-if __name__ == "__main__":
+def read_command_line():
+    """
+    Read arguments from commandline and return all values in a parser dictionary.
+    If no arguments are given, default values will be returned.
+    """
     parser = argparse.ArgumentParser()
-
-    # Problem parameters, nu is allowed to be a list
-    parser.add_argument('--case',
-                        help='which case to run. \n Options: poise, 0 (C0015_healthy), 1 (C0015_terminal), 2 (C0019), 3 (C0065_healthy), 4 (C0065_healthy)',
-                        default='poise', type=str)
-    parser.add_argument('--delta_p', help='pressure drop in mmHg', default=5, type=float)
-
+    # Problem parameters
+    parser.add_argument('--case', help='Which case to run. Options: poise, 0 (C0015_healthy), ' +
+                                       '1 (C0015_terminal), 2 (C0019), 3 (C0065_healthy), 4 (C0065_healthy)',
+                        default='0', type=str, choices={"0", "1", "2", "3", "4", "poise"})
+    parser.add_argument('--delta_p', help='Pressure drop in mmHg', default=5, type=float)
+    parser.add_argument('--nu', help='Dynamic viscosity', default=3e-6, type=float)
     args = parser.parse_args()
 
-    main(args.case, args.delta_p)
+    return args
+
+
+if __name__ == "__main__":
+    args = read_command_line()
+
+    main(args.case, args.delta_p, args.nu)
