@@ -287,12 +287,12 @@ def get_eigenvalue_matrices(mesh, nu, u_init):
     (u, p, c) = TrialFunctions(W)
     (v, q, d) = TestFunctions(W)
 
-    a = EIG_A_cyl(u, p, c, v, q, d, nu)
+    a = EIG_A_cyl(u, p, v, q, nu)
 
     V = W.sub(0).collapse()
     u_zero_i = interpolate(u_init, V)
 
-    b = EIG_B_cyl(u, p, c, v, q, d, u_zero_i)
+    b = EIG_B_cyl(u, v, u_zero_i)
 
     dummy = v[0] * dx
     A = PETScMatrix()
@@ -305,7 +305,7 @@ def get_eigenvalue_matrices(mesh, nu, u_init):
     return A, B, W
 
 
-def EIG_A_cyl(u, p, c, v, q, d, mu):
+def EIG_A_cyl(u, p, v, q, mu):
     """
     Set up operators for eigenvalue problem (Left hand side)
     """
@@ -313,7 +313,7 @@ def EIG_A_cyl(u, p, c, v, q, d, mu):
     return eig_a
 
 
-def EIG_B_cyl(u, p, c, v, q, d, u0):
+def EIG_B_cyl(u, v, u0):
     """
     Set up operators for eigenvalue problem (Right hand side)
     """
