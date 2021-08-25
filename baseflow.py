@@ -41,11 +41,11 @@ def solve_navier_stokes(mesh, boundaries, nu, pin, pout, inflow_marker, outflow_
     ds = Measure('ds', domain=mesh, subdomain_data=boundaries)
 
     n = FacetNormal(mesh)
-    nu = Constant(nu)
     f = Constant((0, 0, 0))
 
-    a = Constant(0.5 * nu) * inner(D(u), D(v)) * dx
-    a += - div(v) * p * dx + q * div(u) * dx + dot(dot(u, nabla_grad(u)), v) * dx
+    a = Constant(nu) * inner(grad(u), grad(v)) * dx
+    a += dot(dot(u, nabla_grad(u)), v) * dx
+    a += - div(v) * p * dx + div(u) * q * dx
 
     L = dot(f, v) * dx
 

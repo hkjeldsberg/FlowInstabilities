@@ -309,7 +309,7 @@ def EIG_A_cyl(u, p, c, v, q, d, mu):
     """
     Set up operators for eigenvalue problem (Left hand side)
     """
-    eig_a = (0.5 * mu * inner(D(u), D(v)) * dx - div(v) * p * dx - q * div(u) * dx)
+    eig_a = mu * inner(grad(u), grad(v)) * dx - div(v) * p * dx - q * div(u) * dx
     return eig_a
 
 
