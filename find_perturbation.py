@@ -6,7 +6,7 @@ import numpy as np
 from dolfin import *
 from slepc4py import SLEPc
 
-from baseflow import solve_navier_stokes, make_pipe_mesh, get_marker_ids, D
+from find_baseflow import solve_navier_stokes, make_pipe_mesh, get_marker_ids, D
 
 
 def main(case, delta_p, nu):
