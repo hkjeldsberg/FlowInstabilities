@@ -1,5 +1,5 @@
 ## FlowInstabilities
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5243903.svg)](https://doi.org/10.5281/zenodo.5243903)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5296829.svg)](https://doi.org/10.5281/zenodo.5296829)
 
 <p align="center">
     <img src="https://i.ibb.co/ZGWQSp8/models.png" width="840 height="480" alt="Models used in code"/>
