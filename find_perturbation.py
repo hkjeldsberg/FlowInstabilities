@@ -16,7 +16,7 @@ def main(case, delta_p, nu):
 
     Args:
         case (str): Case number (or string) for the problem
-        delta_p (float): Pressure drop
+        delta_p (float): Pressure drop in mmHg
         nu (float): Kinematic viscosity
     """
     print('Running case: ' + case)
@@ -26,7 +26,6 @@ def main(case, delta_p, nu):
         # Define parameters
         p_in = 2.0
         p_out = 1.0
-        rho = 1.0
         radius = 1
         length = 5
         n_elem = 10  # Resolution for mesh generation
@@ -38,7 +37,7 @@ def main(case, delta_p, nu):
         no_slip_marker = [1]
 
         # Compute max velocity, Reynolds number and check ratio between length and radius of pipe
-        U_max = (p_in - p_out) * radius ** 2 / (length * nu * rho * 4)
+        U_max = (p_in - p_out) * radius ** 2 / (length * nu * 4)
         Re = U_max * radius / nu
         ratio = length / radius
         if ratio <= 1 / 48 * Re:
@@ -70,7 +69,7 @@ def main(case, delta_p, nu):
         p_in = delta_p * mmHg
         p_out = 0.0
 
-        results_folder = path.join('Eigenmodes/', case_names[case], str(int(delta_p)) + 'mmHg')
+        results_folder = path.join('Eigenmodes', case_names[case], str(int(delta_p)) + 'mmHg')
 
     print('Results will be stored in ' + results_folder)
 
@@ -126,7 +125,7 @@ def main(case, delta_p, nu):
     print('Done solving, process took %4.0f s' % float(toc - tic))
 
     # Write the results to terminal and a .text file
-    eigenvalue_results = results_folder + 'Eigenmodes'
+    eigenvalue_results = path.join(results_folder, 'Eigenmodes')
 
     nev, ncv, mpd = E.getDimensions()  # number of requested eigenvalues and Krylov vectors
     n_converged = E.getConverged()
@@ -151,7 +150,8 @@ def main(case, delta_p, nu):
         f.write('\n'.join(lines))
         print('\n'.join(lines))
 
-    file_u, file_p, file_e = (File(results_folder + name + '.pvd') for name in ('eigvecs', 'eigpressures', 'eigvals'))
+    file_u, file_p, file_e = (File(path.join(results_folder, name + '.pvd')) for name in
+                              ('eigvecs', 'eigpressures', 'eigvals'))
 
     if n_converged == 0:
         with open(eigenvalue_results, "w+") as f:
