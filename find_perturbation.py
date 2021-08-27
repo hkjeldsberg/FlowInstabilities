@@ -255,7 +255,7 @@ def get_eigenvalue_matrices(mesh, nu, u_init):
 
     Args:
         mesh (Mesh): Mesh of problem domain
-        nu (float): Dynamic viscosity
+        nu (float): Kinematic viscosity
         u_init (Function): Baseflow solution
 
     Returns:
@@ -305,11 +305,11 @@ def get_eigenvalue_matrices(mesh, nu, u_init):
     return A, B, W
 
 
-def EIG_A_cyl(u, p, v, q, mu):
+def EIG_A_cyl(u, p, v, q, nu):
     """
     Set up operators for eigenvalue problem (Left hand side)
     """
-    eig_a = mu * inner(grad(u), grad(v)) * dx - div(v) * p * dx - q * div(u) * dx
+    eig_a = nu * inner(grad(u), grad(v)) * dx - div(v) * p * dx - q * div(u) * dx
     return eig_a
 
 
@@ -332,7 +332,7 @@ def read_command_line():
                                        '1 (C0015_terminal), 2 (C0019), 3 (C0065_healthy), 4 (C0065_healthy)',
                         default='0', type=str, choices={"0", "1", "2", "3", "4", "poise"})
     parser.add_argument('--delta_p', help='Pressure drop in mmHg', default=5, type=float)
-    parser.add_argument('--nu', help='Dynamic viscosity', default=3e-6, type=float)
+    parser.add_argument('--nu', help='Kinematic viscosity', default=3e-6, type=float)
     args = parser.parse_args()
 
     return args

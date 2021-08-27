@@ -12,7 +12,7 @@ def solve_navier_stokes(mesh, boundaries, nu, pin, pout, inflow_marker, outflow_
     Args:
         mesh (Mesh): Mesh of problem domain
         boundaries (MeshFunction): Function determining the boundaries of the mesh
-        nu (float): Dynamic viscosity
+        nu (float): Kinematic viscosity
         pin (float): Predefined pressure value at inlet(s)
         pout (float): Predefined pressure value at outlet(s)
         inflow_marker (list): ID(s) corresponding to inlet(s) of mesh
@@ -161,7 +161,7 @@ def D(u):
 if __name__ == '__main__':
     pin = 2.0
     pout = 1.0
-    mu = 1.0
+    nu = 1.0
     radius = 1.0
     n_elem = 15
 
@@ -185,7 +185,7 @@ if __name__ == '__main__':
         inflow_marker, outflow_marker, no_slip_marker = get_marker_ids(case)
 
     # Solve for NS flow in mesh domain
-    u, p = solve_navier_stokes(mesh, boundaries, mu, pin, pout, inflow_marker, outflow_marker, no_slip_marker)
+    u, p = solve_navier_stokes(mesh, boundaries, nu, pin, pout, inflow_marker, outflow_marker, no_slip_marker)
 
     file = File("Baseflow/u.pvd")
     file << u
