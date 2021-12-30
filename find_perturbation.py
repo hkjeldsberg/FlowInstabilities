@@ -331,7 +331,7 @@ def read_command_line():
     parser.add_argument('--case', help='Which case to run. Options: poise, 0 (C0015_healthy), ' +
                                        '1 (C0015_terminal), 2 (C0019), 3 (C0065_healthy), 4 (C0065_healthy)',
                         default='0', type=str, choices={"0", "1", "2", "3", "4", "poise"})
-    parser.add_argument('--delta_p', help='Pressure drop in mmHg', default=5, type=float)
+    parser.add_argument('--delta_p', help='Pressure drop in mmHg', default=0.001, type=float)
     parser.add_argument('--nu', help='Kinematic viscosity', default=3e-6, type=float)
     args = parser.parse_args()
 
